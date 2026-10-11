@@ -18,6 +18,28 @@
         #progress-container { margin-top: 15px; }
         progress { width: 100%; height: 20px; }
     </style>
+    
+    <!-- 100% Foolproof Polyfills via Import Map -->
+    <!-- Bypasses CDN bundling bugs by manually mapping Node built-ins directly in the browser -->
+    <script type="importmap">
+        {
+            "imports": {
+                "crypto": "https://esm.sh/crypto-browserify@3.12.0",
+                "stream": "https://esm.sh/stream-browserify@3.0.0",
+                "buffer": "https://esm.sh/buffer@6.0.3",
+                "zlib": "https://esm.sh/browserify-zlib@0.2.0",
+                "http": "https://esm.sh/stream-http@3.2.0",
+                "https": "https://esm.sh/https-browserify@1.0.0",
+                "net": "https://esm.sh/events@3.3.0",
+                "tls": "https://esm.sh/events@3.3.0",
+                "fs": "https://esm.sh/events@3.3.0",
+                "path": "https://esm.sh/path-browserify@1.0.1",
+                "os": "https://esm.sh/os-browserify@0.3.0",
+                "child_process": "https://esm.sh/events@3.3.0",
+                "readline": "https://esm.sh/events@3.3.0"
+            }
+        }
+    </script>
 </head>
 <body>
 
@@ -67,17 +89,17 @@
         <div id="log">Logs will appear here...</div>
     </div>
 
-    <!-- Buffer Polyfill -->
+    <!-- Inject Global Buffer -->
     <script type="module">
-        import { Buffer } from "https://cdn.jsdelivr.net/npm/buffer@6.0.3/+esm";
+        import { Buffer } from "buffer";
         window.Buffer = Buffer;
         window.globalThis = window;
     </script>
 
     <!-- Main Logic -->
     <script type="module">
-        // Import fix: Loading everything into 'tg' first to avoid missing export errors
-        import * as tg from "https://cdn.jsdelivr.net/npm/telegram@2.22.2/+esm";
+        // Using external flag forces the CDN to NOT bundle native modules, letting the importmap handle them perfectly
+        import * as tg from "https://esm.sh/telegram@2.22.2?bundle-deps&external=crypto,stream,buffer,zlib,http,https,net,tls,fs,path,os,child_process,readline,events";
         
         const GramJS = tg.default || tg;
         const { TelegramClient, Api, sessions } = GramJS;
