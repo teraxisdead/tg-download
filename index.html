@@ -75,8 +75,9 @@
 
     <!-- Main Logic -->
     <script type="module">
-        import { TelegramClient, Api } from "https://esm.sh/telegram@2.22.2";
-        import { StringSession } from "https://esm.sh/telegram@2.22.2/sessions";
+        // Ye rahi wo dono lines jinme main ne ?bundle-deps add kar diya hai
+        import { TelegramClient, Api } from "https://esm.sh/telegram@2.22.2?bundle-deps";
+        import { StringSession } from "https://esm.sh/telegram@2.22.2/sessions?bundle-deps";
 
         let client;
         let session = new StringSession(localStorage.getItem('tg_session') || "");
@@ -101,6 +102,7 @@
             
             const phone = document.getElementById('phone').value;
             try {
+                // Dhyaan rahe: phone number ke aage + zarur lagana
                 await client.sendCode({ apiId, apiHash }, phone);
                 showLog("OTP Sent!");
                 document.getElementById('otp-section').classList.remove('hidden');
@@ -128,7 +130,6 @@
             } catch (err) { showLog("Login failed: " + err.message); }
         });
 
-        // Auto-login if session exists
         if(localStorage.getItem('tg_session')) {
             showLog("Found saved session. Please enter API details and click Send OTP to re-connect seamlessly.");
         }
@@ -160,17 +161,13 @@
         // --- DOWNLOAD LOGIC (File System Access API) ---
         document.getElementById('start-download-btn').addEventListener('click', async () => {
             try {
-                // 1. Ask user for Master Folder (Telegram_Backups)
                 showLog("Please select a master folder for downloads...");
                 masterDirectoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
                 
-                // 2. Create/Get Subfolder for this specific Chat
-                // We remove special characters from chat title for safe folder naming
                 const safeFolderName = selectedChat.title.replace(/[^a-zA-Z0-9 ]/g, "").trim();
                 const chatFolderHandle = await masterDirectoryHandle.getDirectoryHandle(safeFolderName, { create: true });
                 showLog(`Saving files to: ${masterDirectoryHandle.name} / ${safeFolderName}`);
                 
-                // 3. Setup UI
                 document.getElementById('progress-container').classList.remove('hidden');
                 const statusText = document.getElementById('status-text');
                 const progressBar = document.getElementById('progress-bar');
@@ -181,15 +178,12 @@
                 
                 showLog(`Scanning last ${limit} messages...`);
                 
-                // 4. Fetch Messages
                 const filter = mediaType === 'video' ? new Api.InputMessagesFilterVideo() : new Api.InputMessagesFilterPhotos();
                 const messages = await client.getMessages(selectedChat.entity, { filter: filter, limit: limit });
                 
                 let validMessages = [];
-                // Filter out GIFs, Stickers, and check size
                 for (let msg of messages) {
                     if (msg.media && msg.media.document) {
-                        // Check if it's a GIF (usually animated = true in attributes)
                         const isGif = msg.media.document.attributes.some(attr => attr.className === 'DocumentAttributeAnimated');
                         if (isGif) continue; 
                         
@@ -198,11 +192,10 @@
                             validMessages.push({ msg: msg, size: sizeMB });
                         }
                     } else if (msg.media && msg.media.photo && mediaType === 'photo') {
-                        validMessages.push({ msg: msg, size: 0 }); // Photos are usually small
+                        validMessages.push({ msg: msg, size: 0 }); 
                     }
                 }
                 
-                // 5. Sort Smallest to Largest
                 validMessages.sort((a, b) => a.size - b.size);
                 
                 if(validMessages.length === 0) {
@@ -212,18 +205,15 @@
                 
                 showLog(`Found ${validMessages.length} files. Starting download...`);
                 
-                // 6. Download One by One
                 for (let i = 0; i < validMessages.length; i++) {
                     const message = validMessages[i].msg;
                     statusText.innerText = `Downloading ${i + 1} of ${validMessages.length}...`;
                     progressBar.value = 0;
                     
-                    // Determine file extension and name
                     const extension = mediaType === 'video' ? '.mp4' : '.jpg';
                     const fileName = `media_${message.id}${extension}`;
                     
                     try {
-                        // GramJS downloadMedia returns a Buffer in browser
                         const buffer = await client.downloadMedia(message, {
                             progressCallback: (downloaded, total) => {
                                 const percent = (Number(downloaded) / Number(total)) * 100;
@@ -232,7 +222,6 @@
                         });
                         
                         if (buffer) {
-                            // Write Buffer directly to user's selected folder using File System API
                             const fileHandle = await chatFolderHandle.getFileHandle(fileName, { create: true });
                             const writable = await fileHandle.createWritable();
                             await writable.write(buffer);
@@ -250,7 +239,6 @@
                 
             } catch (err) {
                 showLog("Process stopped: " + err.message);
-                // Usually triggers if user cancels folder selection
             }
         });
     </script>
