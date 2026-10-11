@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Media Downloader</title>
+    <style>
+        body { background-color: #0e1621; color: #ffffff; font-family: Arial, sans-serif; padding: 20px; margin: 0; }
+        .container { background-color: #17212b; padding: 20px; border-radius: 10px; max-width: 500px; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        input, button, select { width: 100%; padding: 12px; margin-top: 10px; border-radius: 5px; border: none; box-sizing: border-box; }
+        input, select { background-color: #242f3d; color: white; border: 1px solid #3a4958; }
+        button { background-color: #2b5278; color: white; font-weight: bold; cursor: pointer; margin-top: 15px; }
+        button:hover { background-color: #325f8a; }
+        .hidden { display: none; }
+        #log { margin-top: 15px; color: #74a0c2; font-size: 0.9em; text-align: center; max-height: 150px; overflow-y: auto; }
+        .chat-item { background-color: #242f3d; padding: 10px; margin-top: 8px; border-radius: 5px; cursor: pointer; }
+        .chat-item:hover { background-color: #2b5278; }
+        #progress-container { margin-top: 15px; }
+        progress { width: 100%; height: 20px; }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="login-section">
+        <h2>1. Login to Telegram</h2>
+        <input type="text" id="api-id" placeholder="API ID">
+        <input type="text" id="api-hash" placeholder="API Hash">
+        <input type="text" id="phone" placeholder="Phone Number (+91...)">
+        <button id="send-code-btn">Send OTP</button>
+        
+        <div id="otp-section" class="hidden">
+            <input type="text" id="otp" placeholder="Enter OTP">
+            <input type="password" id="password" placeholder="2FA Password (if any)">
+            <button id="login-btn">Login</button>
+        </div>
+    </div>
+
+    <div class="container hidden" id="dashboard-section">
+        <h2>2. Select Chat</h2>
+        <button id="fetch-chats-btn">Load Groups & Channels</button>
+        <div id="chat-list" style="margin-top: 15px; max-height: 300px; overflow-y: auto;"></div>
+    </div>
+
+    <div class="container hidden" id="download-section">
+        <h2 id="selected-chat-name">3. Download Settings</h2>
+        <label>Media Type:</label>
+        <select id="media-type">
+            <option value="video">Videos</option>
+            <option value="photo">Photos</option>
+        </select>
+        
+        <label>Max Size (MB):</label>
+        <input type="number" id="max-size" value="500" placeholder="e.g. 500">
+        
+        <label>Message Limit (How many recent messages to scan):</label>
+        <input type="number" id="msg-limit" value="50" placeholder="e.g. 50">
+        
+        <button id="start-download-btn">Choose Folder & Start Download</button>
+        
+        <div id="progress-container" class="hidden">
+            <p id="status-text">Starting...</p>
+            <progress id="progress-bar" value="0" max="100"></progress>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div id="log">Logs will appear here...</div>
+    </div>
+
+    <!-- Polyfills for Browser Environment -->
+    <script type="module">
+        import { Buffer } from "https://esm.sh/buffer";
+        window.Buffer = Buffer;
+    </script>
+
+    <!-- Main Logic -->
+    <script type="module">
+        import { TelegramClient, Api } from "https://esm.sh/telegram@2.22.2";
+        import { StringSession } from "https://esm.sh/telegram@2.22.2/sessions";
+
+        let client;
+        let session = new StringSession(localStorage.getItem('tg_session') || "");
+        let selectedChat = null;
+        let masterDirectoryHandle = null;
+        
+        const logDiv = document.getElementById('log');
+        function showLog(msg) { 
+            logDiv.innerText = msg + "\n" + logDiv.innerText; 
+            console.log(msg);
+        }
+
+        // --- LOGIN LOGIC ---
+        document.getElementById('send-code-btn').addEventListener('click', async () => {
+            const apiId = parseInt(document.getElementById('api-id').value);
+            const apiHash = document.getElementById('api-hash').value;
+            if(!apiId || !apiHash) return showLog("Please enter API ID and Hash");
+            
+            showLog("Connecting to Telegram...");
+            client = new TelegramClient(session, apiId, apiHash, { connectionRetries: 5 });
+            await client.connect();
+            
+            const phone = document.getElementById('phone').value;
+            try {
+                await client.sendCode({ apiId, apiHash }, phone);
+                showLog("OTP Sent!");
+                document.getElementById('otp-section').classList.remove('hidden');
+                document.getElementById('send-code-btn').classList.add('hidden');
+            } catch (err) { showLog("Error: " + err.message); }
+        });
+
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            const phone = document.getElementById('phone').value;
+            const code = document.getElementById('otp').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                await client.signInUser({ apiId: client.apiId, apiHash: client.apiHash }, {
+                    phoneNumber: phone,
+                    phoneCode: () => code,
+                    password: () => password,
+                    onError: (err) => showLog(err.message)
+                });
+                showLog("Login Successful!");
+                localStorage.setItem('tg_session', client.session.save());
+                
+                document.getElementById('login-section').classList.add('hidden');
+                document.getElementById('dashboard-section').classList.remove('hidden');
+            } catch (err) { showLog("Login failed: " + err.message); }
+        });
+
+        // Auto-login if session exists
+        if(localStorage.getItem('tg_session')) {
+            showLog("Found saved session. Please enter API details and click Send OTP to re-connect seamlessly.");
+        }
+
+        // --- FETCH CHATS ---
+        document.getElementById('fetch-chats-btn').addEventListener('click', async () => {
+            showLog("Fetching chats...");
+            const dialogs = await client.getDialogs({});
+            const chatList = document.getElementById('chat-list');
+            chatList.innerHTML = "";
+            
+            dialogs.forEach(dialog => {
+                if(dialog.isGroup || dialog.isChannel) {
+                    const div = document.createElement('div');
+                    div.className = 'chat-item';
+                    div.innerText = dialog.title;
+                    div.onclick = () => {
+                        selectedChat = dialog;
+                        document.getElementById('selected-chat-name').innerText = "Download from: " + dialog.title;
+                        document.getElementById('dashboard-section').classList.add('hidden');
+                        document.getElementById('download-section').classList.remove('hidden');
+                    };
+                    chatList.appendChild(div);
+                }
+            });
+            showLog("Chats loaded! Select one to continue.");
+        });
+
+        // --- DOWNLOAD LOGIC (File System Access API) ---
+        document.getElementById('start-download-btn').addEventListener('click', async () => {
+            try {
+                // 1. Ask user for Master Folder (Telegram_Backups)
+                showLog("Please select a master folder for downloads...");
+                masterDirectoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                
+                // 2. Create/Get Subfolder for this specific Chat
+                // We remove special characters from chat title for safe folder naming
+                const safeFolderName = selectedChat.title.replace(/[^a-zA-Z0-9 ]/g, "").trim();
+                const chatFolderHandle = await masterDirectoryHandle.getDirectoryHandle(safeFolderName, { create: true });
+                showLog(`Saving files to: ${masterDirectoryHandle.name} / ${safeFolderName}`);
+                
+                // 3. Setup UI
+                document.getElementById('progress-container').classList.remove('hidden');
+                const statusText = document.getElementById('status-text');
+                const progressBar = document.getElementById('progress-bar');
+                
+                const mediaType = document.getElementById('media-type').value;
+                const maxSizeMB = parseFloat(document.getElementById('max-size').value);
+                const limit = parseInt(document.getElementById('msg-limit').value);
+                
+                showLog(`Scanning last ${limit} messages...`);
+                
+                // 4. Fetch Messages
+                const filter = mediaType === 'video' ? new Api.InputMessagesFilterVideo() : new Api.InputMessagesFilterPhotos();
+                const messages = await client.getMessages(selectedChat.entity, { filter: filter, limit: limit });
+                
+                let validMessages = [];
+                // Filter out GIFs, Stickers, and check size
+                for (let msg of messages) {
+                    if (msg.media && msg.media.document) {
+                        // Check if it's a GIF (usually animated = true in attributes)
+                        const isGif = msg.media.document.attributes.some(attr => attr.className === 'DocumentAttributeAnimated');
+                        if (isGif) continue; 
+                        
+                        const sizeMB = msg.media.document.size / (1024 * 1024);
+                        if (sizeMB <= maxSizeMB) {
+                            validMessages.push({ msg: msg, size: sizeMB });
+                        }
+                    } else if (msg.media && msg.media.photo && mediaType === 'photo') {
+                        validMessages.push({ msg: msg, size: 0 }); // Photos are usually small
+                    }
+                }
+                
+                // 5. Sort Smallest to Largest
+                validMessages.sort((a, b) => a.size - b.size);
+                
+                if(validMessages.length === 0) {
+                    showLog("No matching media found in the scan.");
+                    return;
+                }
+                
+                showLog(`Found ${validMessages.length} files. Starting download...`);
+                
+                // 6. Download One by One
+                for (let i = 0; i < validMessages.length; i++) {
+                    const message = validMessages[i].msg;
+                    statusText.innerText = `Downloading ${i + 1} of ${validMessages.length}...`;
+                    progressBar.value = 0;
+                    
+                    // Determine file extension and name
+                    const extension = mediaType === 'video' ? '.mp4' : '.jpg';
+                    const fileName = `media_${message.id}${extension}`;
+                    
+                    try {
+                        // GramJS downloadMedia returns a Buffer in browser
+                        const buffer = await client.downloadMedia(message, {
+                            progressCallback: (downloaded, total) => {
+                                const percent = (Number(downloaded) / Number(total)) * 100;
+                                progressBar.value = percent;
+                            }
+                        });
+                        
+                        if (buffer) {
+                            // Write Buffer directly to user's selected folder using File System API
+                            const fileHandle = await chatFolderHandle.getFileHandle(fileName, { create: true });
+                            const writable = await fileHandle.createWritable();
+                            await writable.write(buffer);
+                            await writable.close();
+                            showLog(`Saved: ${fileName}`);
+                        }
+                    } catch (e) {
+                        showLog(`Failed to download ${fileName}: ${e.message}`);
+                    }
+                }
+                
+                statusText.innerText = "All downloads complete!";
+                progressBar.value = 100;
+                showLog("Finished batch download.");
+                
+            } catch (err) {
+                showLog("Process stopped: " + err.message);
+                // Usually triggers if user cancels folder selection
+            }
+        });
+    </script>
+</body>
+</html>
