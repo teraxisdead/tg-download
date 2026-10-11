@@ -67,16 +67,19 @@
         <div id="log">Logs will appear here...</div>
     </div>
 
-    <!-- Buffer Polyfill -->
+    <!-- Polyfills for Browser Environment (Fixed Crypto Issue) -->
     <script type="module">
         import { Buffer } from "https://esm.sh/buffer";
+        import crypto from "https://esm.sh/crypto-browserify";
         window.Buffer = Buffer;
+        if (typeof globalThis === 'undefined') window.globalThis = window;
+        globalThis.crypto = window.crypto || crypto;
     </script>
 
     <!-- Main Logic -->
     <script type="module">
-        // Ye rahi wo fix ki hui line. Ab sab kuch ek hi jagah se import hoga.
-        import { TelegramClient, Api, sessions } from "https://esm.sh/telegram@2.22.2?bundle-deps";
+        // Added explicit alias for crypto so the CDN builds it properly without the unenv error
+        import { TelegramClient, Api, sessions } from "https://esm.sh/telegram@2.22.2?bundle-deps&alias=crypto:crypto-browserify";
         const StringSession = sessions.StringSession;
 
         let client;
@@ -96,7 +99,7 @@
             const apiHash = document.getElementById('api-hash').value;
             if(!apiId || !apiHash) return showLog("Please enter API ID and Hash");
             
-            showLog("Connecting to Telegram...");
+            showLog("Connecting to Telegram securely...");
             client = new TelegramClient(session, apiId, apiHash, { connectionRetries: 5 });
             await client.connect();
             
