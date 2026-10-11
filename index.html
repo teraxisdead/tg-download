@@ -25,7 +25,7 @@
         <h2>1. Login to Telegram</h2>
         <input type="text" id="api-id" placeholder="API ID">
         <input type="text" id="api-hash" placeholder="API Hash">
-        <input type="text" id="phone" placeholder="Phone Number (+91...)">
+        <input type="text" id="phone" placeholder="Phone Number (e.g. +9170...)">
         <button id="send-code-btn">Send OTP</button>
         
         <div id="otp-section" class="hidden">
@@ -67,7 +67,7 @@
         <div id="log">Logs will appear here...</div>
     </div>
 
-    <!-- Polyfills for Browser Environment -->
+    <!-- Buffer Polyfill -->
     <script type="module">
         import { Buffer } from "https://esm.sh/buffer";
         window.Buffer = Buffer;
@@ -75,9 +75,9 @@
 
     <!-- Main Logic -->
     <script type="module">
-        // Ye rahi wo dono lines jinme main ne ?bundle-deps add kar diya hai
-        import { TelegramClient, Api } from "https://esm.sh/telegram@2.22.2?bundle-deps";
-        import { StringSession } from "https://esm.sh/telegram@2.22.2/sessions?bundle-deps";
+        // Ye rahi wo fix ki hui line. Ab sab kuch ek hi jagah se import hoga.
+        import { TelegramClient, Api, sessions } from "https://esm.sh/telegram@2.22.2?bundle-deps";
+        const StringSession = sessions.StringSession;
 
         let client;
         let session = new StringSession(localStorage.getItem('tg_session') || "");
@@ -102,7 +102,6 @@
             
             const phone = document.getElementById('phone').value;
             try {
-                // Dhyaan rahe: phone number ke aage + zarur lagana
                 await client.sendCode({ apiId, apiHash }, phone);
                 showLog("OTP Sent!");
                 document.getElementById('otp-section').classList.remove('hidden');
@@ -131,7 +130,7 @@
         });
 
         if(localStorage.getItem('tg_session')) {
-            showLog("Found saved session. Please enter API details and click Send OTP to re-connect seamlessly.");
+            showLog("Found saved session. Enter API ID & Hash, then click Send OTP to connect.");
         }
 
         // --- FETCH CHATS ---
@@ -158,7 +157,7 @@
             showLog("Chats loaded! Select one to continue.");
         });
 
-        // --- DOWNLOAD LOGIC (File System Access API) ---
+        // --- DOWNLOAD LOGIC ---
         document.getElementById('start-download-btn').addEventListener('click', async () => {
             try {
                 showLog("Please select a master folder for downloads...");
