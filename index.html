@@ -67,19 +67,17 @@
         <div id="log">Logs will appear here...</div>
     </div>
 
-    <!-- Polyfills for Browser Environment (Fixed Crypto Issue) -->
+    <!-- Buffer Polyfill for Browserify -->
     <script type="module">
         import { Buffer } from "https://esm.sh/buffer";
-        import crypto from "https://esm.sh/crypto-browserify";
         window.Buffer = Buffer;
-        if (typeof globalThis === 'undefined') window.globalThis = window;
-        globalThis.crypto = window.crypto || crypto;
+        window.globalThis = window;
     </script>
 
     <!-- Main Logic -->
     <script type="module">
-        // Added explicit alias for crypto so the CDN builds it properly without the unenv error
-        import { TelegramClient, Api, sessions } from "https://esm.sh/telegram@2.22.2?bundle-deps&alias=crypto:crypto-browserify";
+        // Yahan par alias use kiya hai taaki unenv error na aaye aur direct browserify use ho
+        import { TelegramClient, Api, sessions } from "https://esm.sh/telegram@2.22.2?bundle-deps&alias=crypto:crypto-browserify,node:crypto:crypto-browserify,stream:stream-browserify,node:stream:stream-browserify";
         const StringSession = sessions.StringSession;
 
         let client;
