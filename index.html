@@ -67,16 +67,20 @@
         <div id="log">Logs will appear here...</div>
     </div>
 
-    <!-- Naya jsDelivr Buffer Polyfill (100% Working for Browser) -->
+    <!-- Buffer Polyfill -->
     <script type="module">
         import { Buffer } from "https://cdn.jsdelivr.net/npm/buffer@6.0.3/+esm";
         window.Buffer = Buffer;
         window.globalThis = window;
     </script>
 
-    <!-- Naya jsDelivr GramJS Core (Bypasses unenv error) -->
+    <!-- Main Logic -->
     <script type="module">
-        import { TelegramClient, Api, sessions } from "https://cdn.jsdelivr.net/npm/telegram@2.22.2/+esm";
+        // Import fix: Loading everything into 'tg' first to avoid missing export errors
+        import * as tg from "https://cdn.jsdelivr.net/npm/telegram@2.22.2/+esm";
+        
+        const GramJS = tg.default || tg;
+        const { TelegramClient, Api, sessions } = GramJS;
         const StringSession = sessions.StringSession;
 
         let client;
@@ -96,7 +100,7 @@
             const apiHash = document.getElementById('api-hash').value;
             if(!apiId || !apiHash) return showLog("Please enter API ID and Hash");
             
-            showLog("Connecting to Telegram securely via jsDelivr...");
+            showLog("Connecting to Telegram securely...");
             client = new TelegramClient(session, apiId, apiHash, { connectionRetries: 5 });
             await client.connect();
             
