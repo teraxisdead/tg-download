@@ -67,17 +67,16 @@
         <div id="log">Logs will appear here...</div>
     </div>
 
-    <!-- Buffer Polyfill for Browserify -->
+    <!-- Naya jsDelivr Buffer Polyfill (100% Working for Browser) -->
     <script type="module">
-        import { Buffer } from "https://esm.sh/buffer";
+        import { Buffer } from "https://cdn.jsdelivr.net/npm/buffer@6.0.3/+esm";
         window.Buffer = Buffer;
         window.globalThis = window;
     </script>
 
-    <!-- Main Logic -->
+    <!-- Naya jsDelivr GramJS Core (Bypasses unenv error) -->
     <script type="module">
-        // Yahan par alias use kiya hai taaki unenv error na aaye aur direct browserify use ho
-        import { TelegramClient, Api, sessions } from "https://esm.sh/telegram@2.22.2?bundle-deps&alias=crypto:crypto-browserify,node:crypto:crypto-browserify,stream:stream-browserify,node:stream:stream-browserify";
+        import { TelegramClient, Api, sessions } from "https://cdn.jsdelivr.net/npm/telegram@2.22.2/+esm";
         const StringSession = sessions.StringSession;
 
         let client;
@@ -97,7 +96,7 @@
             const apiHash = document.getElementById('api-hash').value;
             if(!apiId || !apiHash) return showLog("Please enter API ID and Hash");
             
-            showLog("Connecting to Telegram securely...");
+            showLog("Connecting to Telegram securely via jsDelivr...");
             client = new TelegramClient(session, apiId, apiHash, { connectionRetries: 5 });
             await client.connect();
             
